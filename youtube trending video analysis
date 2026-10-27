@@ -1,0 +1,317 @@
+```python
+# ============================================================
+# YOUTUBE TRENDING VIDEO ANALYSIS (WITH SYNTHETIC DATASET)
+# ============================================================
+
+# Import required libraries
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import KMeans
+
+
+# ============================================================
+# 1. CREATE A SYNTHETIC DATASET
+# ============================================================
+
+np.random.seed(42)
+
+N = 300  # Number of sample videos
+
+data = {
+    "video_id": [f"vid_{i}" for i in range(N)],
+    "title_length": np.random.randint(20, 90, N),
+    "views": np.random.randint(10_000, 10_000_000, N),
+    "likes": np.random.randint(1_000, 500_000, N),
+    "comments": np.random.randint(50, 50_000, N),
+    "category": np.random.choice(
+        ["Music", "Gaming", "News", "Comedy", "Tech", "Education"],
+        N
+    ),
+    "publish_hour": np.random.randint(0, 24, N),
+    "tags_count": np.random.randint(1, 40, N)
+}
+
+# Convert dictionary into a DataFrame
+df = pd.DataFrame(data)
+
+print("Sample Dataset:")
+print(df.head())
+
+
+# ============================================================
+# 2. BASIC EXPLORATORY DATA ANALYSIS (EDA)
+# ============================================================
+
+print("\nDataset Information:")
+df.info()
+
+print("\nSummary Statistics:")
+print(df.describe())
+
+print("\nMissing Values:")
+print(df.isnull().sum())
+
+
+# ------------------------------------------------------------
+# 2.1 Category Distribution
+# ------------------------------------------------------------
+
+plt.figure(figsize=(8, 4))
+
+df["category"].value_counts().plot(kind="bar")
+
+plt.title("Video Category Distribution")
+plt.xlabel("Category")
+plt.ylabel("Number of Videos")
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+
+
+# ------------------------------------------------------------
+# 2.2 Views Distribution
+# ------------------------------------------------------------
+
+plt.figure(figsize=(8, 4))
+
+plt.hist(df["views"], bins=30, edgecolor="black")
+
+plt.title("Distribution of Video Views")
+plt.xlabel("Views")
+plt.ylabel("Frequency")
+plt.tight_layout()
+plt.show()
+
+
+# ------------------------------------------------------------
+# 2.3 Likes vs Views
+# ------------------------------------------------------------
+
+plt.figure(figsize=(8, 5))
+
+sns.scatterplot(
+    data=df,
+    x="views",
+    y="likes",
+    hue="category",
+    alpha=0.7
+)
+
+plt.title("Likes vs Views by Video Category")
+plt.xlabel("Views")
+plt.ylabel("Likes")
+plt.tight_layout()
+plt.show()
+
+
+# ============================================================
+# 3. FEATURE ENGINEERING
+# ============================================================
+
+# Calculate like rate and comment rate
+df["like_rate"] = df["likes"] / df["views"]
+df["comment_rate"] = df["comments"] / df["views"]
+
+print("\nDataset After Feature Engineering:")
+print(df[[
+    "video_id",
+    "views",
+    "likes",
+    "comments",
+    "like_rate",
+    "comment_rate"
+]].head())
+
+
+# ============================================================
+# 4. K-MEANS CLUSTERING TO IDENTIFY VIDEO PATTERNS
+# ============================================================
+
+# Select numerical features for clustering
+features = df[
+    [
+        "views",
+        "likes",
+        "comments",
+        "tags_count",
+        "title_length"
+    ]
+]
+
+# Standardize the features
+scaler = StandardScaler()
+
+X_scaled = scaler.fit_transform(features)
+
+# Apply K-Means clustering
+kmeans = KMeans(
+    n_clusters=3,
+    random_state=42,
+    n_init=10
+)
+
+df["cluster"] = kmeans.fit_predict(X_scaled)
+
+print("\nCluster Centers (Scaled):")
+print(kmeans.cluster_centers_)
+
+print("\nNumber of Videos in Each Cluster:")
+print(df["cluster"].value_counts().sort_index())
+
+
+# ============================================================
+# 5. VISUALIZE THE CLUSTERS
+# ============================================================
+
+plt.figure(figsize=(8, 5))
+
+sns.scatterplot(
+    data=df,
+    x="views",
+    y="likes",
+    hue="cluster",
+    palette="Set1",
+    alpha=0.8
+)
+
+plt.title("K-Means Clusters of YouTube Videos")
+plt.xlabel("Views")
+plt.ylabel("Likes")
+plt.tight_layout()
+plt.show()
+
+
+# ============================================================
+# 6. ANALYZE CLUSTER CHARACTERISTICS
+# ============================================================
+
+cluster_summary = df.groupby("cluster")[
+    [
+        "views",
+        "likes",
+        "comments",
+        "tags_count",
+        "title_length",
+        "like_rate",
+        "comment_rate"
+    ]
+].mean()
+
+print("\nCluster Summary:")
+print(cluster_summary.round(3))
+
+
+# ============================================================
+# 7. INTERPRET TRENDING VIDEO PATTERNS
+# ============================================================
+
+print("\n========== TRENDING PATTERN INTERPRETATION ==========")
+
+for i, row in cluster_summary.iterrows():
+
+    print(f"\nCluster {i}")
+    print("-" * 40)
+
+    if row["views"] > 5_000_000:
+        print("Very high average views: Potential viral content.")
+
+    if row["likes"] > 200_000:
+        print("High average likes: Strong audience engagement.")
+
+    if row["tags_count"] > 25:
+        print("High average tag count: May support content discovery.")
+
+    if row["title_length"] < 40:
+        print("Shorter average titles: Worth investigating for click appeal.")
+
+    if row["comments"] > 30_000:
+        print("High average comments: Potentially strong audience discussion.")
+
+    if (
+        row["views"] <= 5_000_000
+        and row["likes"] <= 200_000
+        and row["comments"] <= 30_000
+    ):
+        print("Does not meet the selected high-engagement thresholds.")
+
+
+# ============================================================
+# 8. CATEGORY-WISE PERFORMANCE ANALYSIS
+# ============================================================
+
+category_summary = df.groupby("category")[
+    ["views", "likes", "comments"]
+].mean().sort_values(by="views", ascending=False)
+
+print("\nCategory-Wise Average Performance:")
+print(category_summary.round(2))
+
+
+# Plot average views by category
+plt.figure(figsize=(9, 5))
+
+sns.barplot(
+    data=df,
+    x="category",
+    y="views",
+    estimator=np.mean,
+    errorbar=None
+)
+
+plt.title("Average Views by Video Category")
+plt.xlabel("Category")
+plt.ylabel("Average Views")
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+
+
+# ============================================================
+# 9. PUBLISHING HOUR ANALYSIS
+# ============================================================
+
+hourly_views = df.groupby("publish_hour")["views"].mean()
+
+print("\nAverage Views by Publishing Hour:")
+print(hourly_views.round(2))
+
+plt.figure(figsize=(10, 5))
+
+hourly_views.plot(kind="line", marker="o")
+
+plt.title("Average Video Views by Publishing Hour")
+plt.xlabel("Publishing Hour (0-23)")
+plt.ylabel("Average Views")
+plt.xticks(range(0, 24))
+plt.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.show()
+
+
+# ============================================================
+# 10. FINAL INSIGHTS
+# ============================================================
+
+print("\n========== FINAL INSIGHTS ==========")
+
+print("""
+1. Video categories can be compared by their average views.
+2. Likes and comments help describe audience engagement.
+3. K-Means groups videos with similar numerical characteristics.
+4. Like rate and comment rate provide engagement measures relative
+   to the number of views.
+5. Publishing-hour analysis identifies patterns in this dataset.
+6. Tags and title length can be explored as potential predictors
+   of video performance.
+
+IMPORTANT:
+This project uses synthetic data generated randomly for demonstration.
+The results do not establish real YouTube trends or prove that
+short titles, more tags, or specific publishing hours cause videos
+to become popular.
+""")
+```
